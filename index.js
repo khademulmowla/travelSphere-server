@@ -94,6 +94,13 @@ async function run() {
             res.send(result)
 
         })
+        // delete a single story data by id from db //
+        app.delete('/story/:id', async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await storiesCollection.deleteOne(query)
+            res.send(result)
+        })
 
 
 
