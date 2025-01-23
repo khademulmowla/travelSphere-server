@@ -86,14 +86,8 @@ async function run() {
             const result = await storiesCollection.find().toArray()
             res.send(result)
         })
-        //get all story posted by a specific user
-        app.get('/stories/:email', async (req, res) => {
-            const email = req.params.email
-            const query = { email }
-            const result = await storiesCollection.find(query).toArray()
-            res.send(result)
 
-        })
+
 
 
         // Connect the client to the server	(optional starting in v4.7)
