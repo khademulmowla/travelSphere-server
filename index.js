@@ -2,7 +2,7 @@ require('dotenv').config()
 const express = require('express')
 const app = express()
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken')
 const port = process.env.PORT || 8000;
 
@@ -25,6 +25,7 @@ async function run() {
     try {
         const db = client.db('travelDb')
         const packagesCollection = db.collection('packages')
+        const storiesCollection = db.collection('stories')
 
 
         // jwt related api //
@@ -70,6 +71,28 @@ async function run() {
             const query = { _id: new ObjectId(id) }
             const result = await packagesCollection.findOne(query)
             res.send(result)
+        })
+
+        ///////////////////////////////// stories db ///////////////////////////
+
+        // save a story in db //
+        app.post('/add-story', async (req, res) => {
+            const storyData = req.body;
+            const result = await storiesCollection.insertOne(storyData)
+            res.send(result)
+        })
+        // get all story data //
+        app.get('/stories', async (req, res) => {
+            const result = await storiesCollection.find().toArray()
+            res.send(result)
+        })
+        //get all story posted by a specific user
+        app.get('/stories/:email', async (req, res) => {
+            const email = req.params.email
+            const query = { email }
+            const result = await storiesCollection.find(query).toArray()
+            res.send(result)
+
         })
 
 
