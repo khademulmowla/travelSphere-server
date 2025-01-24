@@ -115,6 +115,33 @@ async function run() {
                 res.status(400).send({ error: "Invalid ID format" });
             }
         });
+        // edit story 
+        app.patch("/story/:id", async (req, res) => {
+            const { id } = req.params;
+            const { action, photoUrl } = req.body;
+
+            const query = { _id: new ObjectId(id) };
+            let update;
+
+            if (action === "removePhoto") {
+                update = { $pull: { images: photoUrl } };
+            } else if (action === "addPhoto") {
+                update = { $push: { images: photoUrl } };
+            } else {
+                return res.status(400).send({ error: "Invalid action" });
+            }
+
+            try {
+                const result = await storiesCollection.updateOne(query, update);
+                if (result.modifiedCount > 0) {
+                    res.send(result);
+                } else {
+                    res.status(400).send({ error: "Failed to update story" });
+                }
+            } catch (error) {
+                res.status(500).send({ error: "Error updating story" });
+            }
+        });
 
 
 
