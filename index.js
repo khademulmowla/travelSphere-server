@@ -24,9 +24,24 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         const db = client.db('travelDb')
+        const usersCollection = db.collection('users')
         const packagesCollection = db.collection('packages')
         const storiesCollection = db.collection('stories')
 
+
+        // save or update a user in db //
+        app.post('/users/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email }
+            const user = req.body
+            // check if user exists in db //
+            const isExist = await usersCollection.findOne(query)
+            if (isExist) {
+                return res.send(isExist)
+            }
+            const result = await usersCollection.insertOne({ ...user, role: 'tourist', timestamp: Date.now() })
+            res.send(result)
+        })
 
         // jwt related api //
         app.post('/jwt', async (req, res) => {
@@ -72,6 +87,15 @@ async function run() {
             const result = await packagesCollection.findOne(query)
             res.send(result)
         })
+        // Get random 3 packages
+        app.get('/random-packages', async (req, res) => {
+            try {
+                const result = await packagesCollection.aggregate([{ $sample: { size: 3 } }]).toArray();
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch packages" });
+            }
+        });
 
         ///////////////////////////////// stories db ///////////////////////////
 
@@ -142,7 +166,6 @@ async function run() {
                 res.status(500).send({ error: "Error updating story" });
             }
         });
-
 
 
 
