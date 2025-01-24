@@ -208,7 +208,13 @@ async function run() {
             const result = await booksCollection.insertOne(bookInfo)
             res.send(result)
         })
-        get
+        app.get('/tourist-books/:email', async (req, res) => {
+            const email = req.params.email
+            const query = { 'userEmail': email }
+            const result = await booksCollection.find(query).toArray()
+            res.send(result)
+        })
+
 
 
 
