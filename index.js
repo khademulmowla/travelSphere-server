@@ -166,6 +166,15 @@ async function run() {
                 res.status(500).send({ error: "Error updating story" });
             }
         });
+        // random stories ///
+        app.get('/random-stories', async (req, res) => {
+            try {
+                const result = await storiesCollection.aggregate([{ $sample: { size: 4 } }]).toArray();
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch stories" });
+            }
+        });
 
 
 
