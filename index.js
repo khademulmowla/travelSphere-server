@@ -27,6 +27,7 @@ async function run() {
         const usersCollection = db.collection('users')
         const packagesCollection = db.collection('packages')
         const storiesCollection = db.collection('stories')
+        const booksCollection = db.collection('books')
 
 
         // save or update a user in db //
@@ -42,6 +43,30 @@ async function run() {
             const result = await usersCollection.insertOne({ ...user, role: 'tourist', timestamp: Date.now() })
             res.send(result)
         })
+        // Get all tour guides
+        app.get('/tour-guides', async (req, res) => {
+            try {
+                const query = { role: "guide" };
+                const tourGuides = await usersCollection.find(query).toArray();
+                res.send(tourGuides);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch tour guides" });
+            }
+        });
+        // random tour guide //
+        app.get('/random-tour-guides', async (req, res) => {
+            try {
+                const result = await usersCollection.aggregate([
+                    { $match: { role: "guide" } },
+                    { $sample: { size: 6 } }
+                ]).toArray();
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch tour guides" });
+            }
+        });
+
+
 
         // jwt related api //
         app.post('/jwt', async (req, res) => {
@@ -175,6 +200,15 @@ async function run() {
                 res.status(500).send({ error: "Failed to fetch stories" });
             }
         });
+
+        // bookings //
+        // save a booking data in db //
+        app.post('/books', async (req, res) => {
+            const bookInfo = req.body;
+            const result = await booksCollection.insertOne(bookInfo)
+            res.send(result)
+        })
+        get
 
 
 
