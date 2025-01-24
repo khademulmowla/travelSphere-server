@@ -101,6 +101,24 @@ async function run() {
             const result = await storiesCollection.deleteOne(query)
             res.send(result)
         })
+        // get story by id
+        app.get('/story/:id', async (req, res) => {
+            const { id } = req.params;
+            try {
+                const query = { _id: new ObjectId(id) };
+                const story = await storiesCollection.findOne(query);
+                if (!story) {
+                    return res.status(404).send({ error: "Story not found" });
+                }
+                res.send(story);
+            } catch (error) {
+                res.status(400).send({ error: "Invalid ID format" });
+            }
+        });
+
+
+
+
 
 
 
