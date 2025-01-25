@@ -28,46 +28,6 @@ async function run() {
         const packagesCollection = db.collection('packages')
         const storiesCollection = db.collection('stories')
         const booksCollection = db.collection('books')
-
-
-        // save or update a user in db //
-        app.post('/users/:email', async (req, res) => {
-            const email = req.params.email;
-            const query = { email }
-            const user = req.body
-            // check if user exists in db //
-            const isExist = await usersCollection.findOne(query)
-            if (isExist) {
-                return res.send(isExist)
-            }
-            const result = await usersCollection.insertOne({ ...user, role: 'tourist', timestamp: Date.now() })
-            res.send(result)
-        })
-        // Get all tour guides
-        app.get('/tour-guides', async (req, res) => {
-            try {
-                const query = { role: "guide" };
-                const tourGuides = await usersCollection.find(query).toArray();
-                res.send(tourGuides);
-            } catch (error) {
-                res.status(500).send({ error: "Failed to fetch tour guides" });
-            }
-        });
-        // random tour guide //
-        app.get('/random-tour-guides', async (req, res) => {
-            try {
-                const result = await usersCollection.aggregate([
-                    { $match: { role: "guide" } },
-                    { $sample: { size: 6 } }
-                ]).toArray();
-                res.send(result);
-            } catch (error) {
-                res.status(500).send({ error: "Failed to fetch tour guides" });
-            }
-        });
-
-
-
         // jwt related api //
         app.post('/jwt', async (req, res) => {
             const user = req.body;
@@ -93,6 +53,89 @@ async function run() {
             })
 
         }
+
+
+
+        // save or update a user in db //
+        app.post('/users/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email }
+            const user = req.body
+            // check if user exists in db //
+            const isExist = await usersCollection.findOne(query)
+            if (isExist) {
+                return res.send(isExist)
+            }
+            const result = await usersCollection.insertOne({ ...user, role: 'tourist', timestamp: Date.now() })
+            res.send(result)
+        })
+
+        // get all user data //
+        app.get('/all-users/:email', verifyToken, async (req, res) => {
+            const email = req.params.email
+            const query = { email: { $ne: email } }
+            const result = await usersCollection.find(query).toArray()
+            res.send(result)
+        })
+
+        app.get('/all-users/admin/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            let admin = false;
+            if (user) {
+                admin = user.role === 'admin';
+            }
+            res.send({ admin })
+        })
+        app.delete('/all-users/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await usersCollection.deleteOne(query)
+            res.send(result);
+        })
+        app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    role: 'admin'
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updatedDoc)
+            res.send(result)
+        })
+
+
+
+
+
+
+        // Get all tour guides
+        app.get('/tour-guides', async (req, res) => {
+            try {
+                const query = { role: "guide" };
+                const tourGuides = await usersCollection.find(query).toArray();
+                res.send(tourGuides);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch tour guides" });
+            }
+        });
+        // random tour guide //
+        app.get('/random-tour-guides', async (req, res) => {
+            try {
+                const result = await usersCollection.aggregate([
+                    { $match: { role: "guide" } },
+                    { $sample: { size: 6 } }
+                ]).toArray();
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch tour guides" });
+            }
+        });
 
         // save a package in db //
         app.post('/packages', verifyToken, async (req, res) => {
@@ -208,12 +251,21 @@ async function run() {
             const result = await booksCollection.insertOne(bookInfo)
             res.send(result)
         })
+        // get all bookings for a specific tourists //
         app.get('/tourist-books/:email', async (req, res) => {
             const email = req.params.email
             const query = { 'userEmail': email }
             const result = await booksCollection.find(query).toArray()
             res.send(result)
         })
+        // Get all assigned tours for a specific guide
+        app.get('/guide-assignments/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'guideEmail': email };
+            const result = await booksCollection.find(query).toArray();
+            res.send(result);
+        });
+
 
 
 
