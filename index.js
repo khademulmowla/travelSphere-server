@@ -28,6 +28,38 @@ async function run() {
         const packagesCollection = db.collection('packages')
         const storiesCollection = db.collection('stories')
         const booksCollection = db.collection('books')
+        const applicationCollection = db.collection('applications')
+
+        // verify admin 
+        // verify admin middleware
+        const verifyAdmin = async (req, res, next) => {
+            // console.log('data from verifyToken middleware--->', req.user?.email)
+            const email = req.user?.email
+            const query = { email }
+            const result = await usersCollection.findOne(query)
+            if (!result || result?.role !== 'admin')
+                return res
+                    .status(403)
+                    .send({ message: 'Forbidden Access! Admin Only Actions!' })
+
+            next()
+        }
+        // verify seller middleware
+        const verifyGuide = async (req, res, next) => {
+            // console.log('data from verifyToken middleware--->', req.user?.email)
+            const email = req.user?.email
+            const query = { email }
+            const result = await usersCollection.findOne(query)
+            if (!result || result?.role !== 'guide')
+                return res
+                    .status(403)
+                    .send({ message: 'Forbidden Access! Guide Only Actions!' })
+
+            next()
+        }
+
+
+
         // jwt related api //
         app.post('/jwt', async (req, res) => {
             const user = req.body;
@@ -57,7 +89,7 @@ async function run() {
 
 
         // save or update a user in db //
-        app.post('/users/:email', async (req, res) => {
+        app.post('/all-users/:email', async (req, res) => {
             const email = req.params.email;
             const query = { email }
             const user = req.body
@@ -91,22 +123,28 @@ async function run() {
             }
             res.send({ admin })
         })
-        app.delete('/all-users/:id', verifyToken, async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
-            const result = await usersCollection.deleteOne(query)
-            res.send(result);
-        })
-        app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const updatedDoc = {
-                $set: {
-                    role: 'admin'
-                }
-            }
-            const result = await usersCollection.updateOne(filter, updatedDoc)
-            res.send(result)
+        // app.delete('/all-users/:id', verifyToken, async (req, res) => {
+        //     const id = req.params.id;
+        //     const query = { _id: new ObjectId(id) }
+        //     const result = await usersCollection.deleteOne(query)
+        //     res.send(result);
+        // })
+        // app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
+        //     const id = req.params.id;
+        //     const filter = { _id: new ObjectId(id) }
+        //     const updatedDoc = {
+        //         $set: {
+        //             role: 'admin'
+        //         }
+        //     }
+        //     const result = await usersCollection.updateOne(filter, updatedDoc)
+        //     res.send(result)
+        // })
+        // get user role //
+        app.get('/all-users/role/:email', verifyToken, async (req, res) => {
+            const email = req.params.email
+            const result = await usersCollection.findOne({ email })
+            res.send({ role: result?.role })
         })
 
 
@@ -265,6 +303,97 @@ async function run() {
             const result = await booksCollection.find(query).toArray();
             res.send(result);
         });
+
+
+        // Delete a Booking & Assigned Tour
+        app.delete('/books/:id', verifyToken, async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                // Validate the ID
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({ error: 'Invalid booking ID' });
+                }
+
+                const query = { _id: new ObjectId(id) };
+
+                // Delete the booking
+                const deleteResult = await booksCollection.deleteOne(query);
+
+                if (deleteResult.deletedCount > 0) {
+                    return res.json({ success: true, message: 'Booking deleted successfully' });
+                } else {
+                    return res.status(404).json({ success: false, message: 'Booking not found' });
+                }
+            } catch (error) {
+                console.error('Error deleting booking:', error);
+                return res.status(500).json({ error: 'Failed to delete booking' });
+            }
+        });
+
+        // applicationCollection //
+        // save a application in db //
+        app.post('/applications', async (req, res) => {
+            const application = req.body;
+            const existingApplication = await applicationCollection.findOne({ "tourist.email": application.tourist.email });
+
+            if (existingApplication) {
+                return res.status(400).send({ message: "You have already applied once." });
+            }
+
+            const result = await applicationCollection.insertOne(application);
+            res.send(result);
+        });
+
+        // get all application data //
+        app.get('/all-applications', async (req, res) => {
+            const result = await applicationCollection.find().toArray();
+            res.send(result);
+        });
+
+        //////////////////////////
+        app.patch('/users/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const updateRole = { role: "guide" };
+
+            const result = await usersCollection.updateOne(
+                { email: email },
+                { $set: updateRole }
+            );
+
+            res.send(result);
+        });
+        app.delete('/applications/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const result = await applicationCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+
+
+
+
+        //////////////////////
+
+
+        // app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
+        //     const id = req.params.id;
+        //     const filter = { _id: new ObjectId(id) };
+        //     const updateRole = {
+        //         $set: { role: 'guide' }
+        //     };
+        //     const result = await usersCollection.updateOne(filter, updateRole);
+        //     res.send(result);
+        // });
+        // app.delete('/applications/:id', verifyToken, async (req, res) => {
+        //     const id = req.params.id;
+        //     const query = { _id: new ObjectId(id) };
+        //     const result = await applicationCollection.deleteOne(query);
+        //     res.send(result);
+        // });
+
+
+
 
 
 
