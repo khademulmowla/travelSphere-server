@@ -4,6 +4,7 @@ const app = express()
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken')
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const port = process.env.PORT || 8000;
 
 // middleware //
@@ -101,14 +102,38 @@ async function run() {
             const result = await usersCollection.insertOne({ ...user, role: 'tourist', timestamp: Date.now() })
             res.send(result)
         })
-
-        // get all user data //
+        // get all user data and search function //
         app.get('/all-users/:email', verifyToken, async (req, res) => {
-            const email = req.params.email
-            const query = { email: { $ne: email } }
-            const result = await usersCollection.find(query).toArray()
-            res.send(result)
-        })
+            const email = req.params.email;
+            const search = req.query.search || "";
+            const role = req.query.role || "";
+
+            // Search query using regex for case-insensitive search
+            const searchQuery = {
+                $or: [
+                    { name: { $regex: search, $options: "i" } },
+                    { email: { $regex: search, $options: "i" } }
+                ]
+            };
+
+            // Role filter condition
+            const roleFilter = role ? { role: role } : {};
+
+            // Exclude the logged-in user
+            const query = { email: { $ne: email }, ...searchQuery, ...roleFilter };
+
+            const result = await usersCollection.find(query).toArray();
+            res.send(result);
+        });
+
+
+        // // get all user data //
+        // app.get('/all-users/:email', verifyToken, async (req, res) => {
+        //     const email = req.params.email
+        //     const query = { email: { $ne: email } }
+        //     const result = await usersCollection.find(query).toArray()
+        //     res.send(result)
+        // })
 
         app.get('/all-users/admin/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
@@ -146,6 +171,22 @@ async function run() {
             const result = await usersCollection.findOne({ email })
             res.send({ role: result?.role })
         })
+
+        // update user info in profile
+        app.patch("/update-user/:email", verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const user = req.body;
+
+            const query = { email };
+            const updateDoc = {
+                $set: user
+            };
+
+            const result = await usersCollection.updateOne(query, updateDoc);
+            res.send(result);
+        });
+
+
 
 
 
@@ -289,6 +330,61 @@ async function run() {
             const result = await booksCollection.insertOne(bookInfo)
             res.send(result)
         })
+        // transaction id //
+        app.patch('/books/:id', async (req, res) => {
+            const { id } = req.params;
+            const { transactionId } = req.body;
+
+            try {
+                const filter = { _id: new ObjectId(id) };
+                const updateDoc = {
+                    $set: {
+                        transactionId: transactionId,
+                        status: 'in-review', // Update status to "in-review"
+                    },
+                };
+
+                const result = await booksCollection.updateOne(filter, updateDoc);
+
+                if (result.modifiedCount > 0) {
+                    res.json({ success: true, message: 'Payment successful, status updated to in-review.' });
+                } else {
+                    res.status(400).json({ success: false, message: 'Booking not found or already updated.' });
+                }
+            } catch (error) {
+                console.error('Error updating booking status:', error);
+                res.status(500).json({ success: false, message: 'Internal Server Error' });
+            }
+        });
+
+        // app.patch('/books/:id', async (req, res) => {
+        //     try {
+        //         const id = req.params.id;
+        //         const { transactionId } = req.body;
+
+        //         // Ensure transactionId is provided
+        //         if (!transactionId) {
+        //             return res.status(400).send({ message: 'Transaction ID is required' });
+        //         }
+
+        //         const filter = { _id: new ObjectId(id) };
+        //         const updateDoc = {
+        //             $set: { transactionId },
+        //         };
+
+        //         const result = await booksCollection.updateOne(filter, updateDoc);
+
+        //         if (result.modifiedCount === 0) {
+        //             return res.status(404).send({ message: 'Booking not found or already updated' });
+        //         }
+
+        //         res.send({ success: true, message: 'Booking updated successfully', result });
+        //     } catch (error) {
+        //         console.error('Error updating booking:', error);
+        //         res.status(500).send({ message: 'Internal server error', error });
+        //     }
+        // });
+
         // get all bookings for a specific tourists //
         app.get('/tourist-books/:email', async (req, res) => {
             const email = req.params.email
@@ -302,6 +398,27 @@ async function run() {
             const query = { 'guideEmail': email };
             const result = await booksCollection.find(query).toArray();
             res.send(result);
+        });
+        // for status change //
+        // Route to update the status of a booking (Accept/Reject)
+        app.patch('/update-status/:id', async (req, res) => {
+            const id = req.params.id;
+            const { status } = req.body;  // status will be either 'Accepted' or 'Rejected'
+
+            try {
+                const result = await booksCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: status } }
+                );
+
+                if (result.modifiedCount > 0) {
+                    res.status(200).send('Status updated successfully');
+                } else {
+                    res.status(400).send('No updates made');
+                }
+            } catch (err) {
+                res.status(500).send('Error updating status');
+            }
         });
 
 
@@ -396,6 +513,26 @@ async function run() {
 
 
 
+        app.post('/create-payment-intent', async (req, res) => {
+            try {
+                const { packageId } = req.body;
+                const package = await booksCollection.findOne({ _id: new ObjectId(packageId) });
+
+                if (!package) {
+                    return res.status(400).send({ message: 'Package Not Found' });
+                }
+
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount: package.price * 100, // Convert to cents
+                    currency: 'usd',
+                    automatic_payment_methods: { enabled: true },
+                });
+
+                res.send({ clientSecret: paymentIntent.client_secret });
+            } catch (error) {
+                res.status(500).send({ error: error.message });
+            }
+        });
 
 
 
