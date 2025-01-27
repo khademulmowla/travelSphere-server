@@ -32,31 +32,27 @@ async function run() {
         const applicationCollection = db.collection('applications')
 
         // verify admin 
-        // verify admin middleware
+        // verify admin //
         const verifyAdmin = async (req, res, next) => {
-            // console.log('data from verifyToken middleware--->', req.user?.email)
-            const email = req.user?.email
-            const query = { email }
-            const result = await usersCollection.findOne(query)
-            if (!result || result?.role !== 'admin')
-                return res
-                    .status(403)
-                    .send({ message: 'Forbidden Access! Admin Only Actions!' })
-
-            next()
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            const isAdmin = user?.role === 'admin';
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            next();
         }
-        // verify seller middleware
+        // verify admin //
         const verifyGuide = async (req, res, next) => {
-            // console.log('data from verifyToken middleware--->', req.user?.email)
-            const email = req.user?.email
-            const query = { email }
-            const result = await usersCollection.findOne(query)
-            if (!result || result?.role !== 'guide')
-                return res
-                    .status(403)
-                    .send({ message: 'Forbidden Access! Guide Only Actions!' })
-
-            next()
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            const isGuide = user?.role === 'guide';
+            if (!isGuide) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            next();
         }
 
 
@@ -103,7 +99,7 @@ async function run() {
             res.send(result)
         })
         // get all user data and search function //
-        app.get('/all-users/:email', verifyToken, async (req, res) => {
+        app.get('/all-users/:email', verifyToken, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const search = req.query.search || "";
             const role = req.query.role || "";
@@ -127,19 +123,10 @@ async function run() {
         });
 
 
-        // // get all user data //
-        // app.get('/all-users/:email', verifyToken, async (req, res) => {
-        //     const email = req.params.email
-        //     const query = { email: { $ne: email } }
-        //     const result = await usersCollection.find(query).toArray()
-        //     res.send(result)
-        // })
 
-        app.get('/all-users/admin/:email', verifyToken, async (req, res) => {
+        // no token 
+        app.get('/all-users/admin/:email', async (req, res) => {
             const email = req.params.email;
-            if (email !== req.decoded.email) {
-                return res.status(403).send({ message: 'forbidden access' })
-            }
             const query = { email: email }
             const user = await usersCollection.findOne(query);
             let admin = false;
@@ -148,23 +135,7 @@ async function run() {
             }
             res.send({ admin })
         })
-        // app.delete('/all-users/:id', verifyToken, async (req, res) => {
-        //     const id = req.params.id;
-        //     const query = { _id: new ObjectId(id) }
-        //     const result = await usersCollection.deleteOne(query)
-        //     res.send(result);
-        // })
-        // app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
-        //     const id = req.params.id;
-        //     const filter = { _id: new ObjectId(id) }
-        //     const updatedDoc = {
-        //         $set: {
-        //             role: 'admin'
-        //         }
-        //     }
-        //     const result = await usersCollection.updateOne(filter, updatedDoc)
-        //     res.send(result)
-        // })
+
         // get user role //
         app.get('/all-users/role/:email', verifyToken, async (req, res) => {
             const email = req.params.email
@@ -185,14 +156,26 @@ async function run() {
             const result = await usersCollection.updateOne(query, updateDoc);
             res.send(result);
         });
+        //////////////////////////////////
+
+        app.get('/tour-guides/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                const guide = await usersCollection.findOne({ _id: new ObjectId(id) });
+                if (!guide) {
+                    return res.status(404).send({ error: "Guide not found" });
+                }
+                res.send(guide);
+            } catch (error) {
+                res.status(500).send({ error: "Failed to fetch tour guide details" });
+            }
+        });
 
 
 
 
 
-
-
-
+        /////////////////////////////////
         // Get all tour guides
         app.get('/tour-guides', async (req, res) => {
             try {
@@ -217,7 +200,7 @@ async function run() {
         });
 
         // save a package in db //
-        app.post('/packages', verifyToken, async (req, res) => {
+        app.post('/packages', verifyToken, verifyAdmin, async (req, res) => {
             const package = req.body
             const result = await packagesCollection.insertOne(package)
             res.send(result)
@@ -228,7 +211,7 @@ async function run() {
             res.send(result)
         })
         // get a package by id //
-        app.get('/package/:id', async (req, res) => {
+        app.get('/package/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await packagesCollection.findOne(query)
@@ -247,7 +230,7 @@ async function run() {
         ///////////////////////////////// stories db ///////////////////////////
 
         // save a story in db //
-        app.post('/add-story', async (req, res) => {
+        app.post('/add-story', verifyToken, async (req, res) => {
             const storyData = req.body;
             const result = await storiesCollection.insertOne(storyData)
             res.send(result)
@@ -287,7 +270,7 @@ async function run() {
             }
         });
         // edit story 
-        app.patch("/story/:id", async (req, res) => {
+        app.patch("/story/:id", verifyToken, async (req, res) => {
             const { id } = req.params;
             const { action, photoUrl } = req.body;
 
@@ -325,13 +308,13 @@ async function run() {
 
         // bookings //
         // save a booking data in db //
-        app.post('/books', async (req, res) => {
+        app.post('/books', verifyToken, async (req, res) => {
             const bookInfo = req.body;
             const result = await booksCollection.insertOne(bookInfo)
             res.send(result)
         })
         // transaction id //
-        app.patch('/books/:id', async (req, res) => {
+        app.patch('/books/:id', verifyToken, async (req, res) => {
             const { id } = req.params;
             const { transactionId } = req.body;
 
@@ -357,33 +340,7 @@ async function run() {
             }
         });
 
-        // app.patch('/books/:id', async (req, res) => {
-        //     try {
-        //         const id = req.params.id;
-        //         const { transactionId } = req.body;
 
-        //         // Ensure transactionId is provided
-        //         if (!transactionId) {
-        //             return res.status(400).send({ message: 'Transaction ID is required' });
-        //         }
-
-        //         const filter = { _id: new ObjectId(id) };
-        //         const updateDoc = {
-        //             $set: { transactionId },
-        //         };
-
-        //         const result = await booksCollection.updateOne(filter, updateDoc);
-
-        //         if (result.modifiedCount === 0) {
-        //             return res.status(404).send({ message: 'Booking not found or already updated' });
-        //         }
-
-        //         res.send({ success: true, message: 'Booking updated successfully', result });
-        //     } catch (error) {
-        //         console.error('Error updating booking:', error);
-        //         res.status(500).send({ message: 'Internal server error', error });
-        //     }
-        // });
 
         // get all bookings for a specific tourists //
         app.get('/tourist-books/:email', async (req, res) => {
@@ -393,7 +350,7 @@ async function run() {
             res.send(result)
         })
         // Get all assigned tours for a specific guide
-        app.get('/guide-assignments/:email', async (req, res) => {
+        app.get('/guide-assignments/:email', verifyToken, verifyGuide, async (req, res) => {
             const email = req.params.email;
             const query = { 'guideEmail': email };
             const result = await booksCollection.find(query).toArray();
@@ -463,13 +420,13 @@ async function run() {
         });
 
         // get all application data //
-        app.get('/all-applications', async (req, res) => {
+        app.get('/all-applications', verifyToken, verifyAdmin, async (req, res) => {
             const result = await applicationCollection.find().toArray();
             res.send(result);
         });
 
         //////////////////////////
-        app.patch('/users/:email', verifyToken, async (req, res) => {
+        app.patch('/users/:email', verifyToken, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const updateRole = { role: "guide" };
 
@@ -480,34 +437,11 @@ async function run() {
 
             res.send(result);
         });
-        app.delete('/applications/:id', verifyToken, async (req, res) => {
+        app.delete('/applications/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const result = await applicationCollection.deleteOne({ _id: new ObjectId(id) });
             res.send(result);
         });
-
-
-
-
-
-        //////////////////////
-
-
-        // app.patch('/all-users/admin/:id', verifyToken, async (req, res) => {
-        //     const id = req.params.id;
-        //     const filter = { _id: new ObjectId(id) };
-        //     const updateRole = {
-        //         $set: { role: 'guide' }
-        //     };
-        //     const result = await usersCollection.updateOne(filter, updateRole);
-        //     res.send(result);
-        // });
-        // app.delete('/applications/:id', verifyToken, async (req, res) => {
-        //     const id = req.params.id;
-        //     const query = { _id: new ObjectId(id) };
-        //     const result = await applicationCollection.deleteOne(query);
-        //     res.send(result);
-        // });
 
 
 
@@ -541,10 +475,10 @@ async function run() {
 
 
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
