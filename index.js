@@ -30,6 +30,20 @@ async function run() {
         const storiesCollection = db.collection('stories')
         const booksCollection = db.collection('books')
         const applicationCollection = db.collection('applications')
+        const reviewCollection = db.collection('reviews')
+        const blogsCollection = db.collection('blogs')
+
+        // review//
+        // reviews related api //
+        app.get('/reviews', async (req, res) => {
+            const result = await reviewCollection.find().toArray()
+            res.send(result)
+        })
+        // blogs //
+        app.get('/blogs', async (req, res) => {
+            const result = await blogsCollection.find().toArray()
+            res.send(result)
+        })
 
         // verify admin 
         // verify admin //
@@ -206,10 +220,24 @@ async function run() {
             res.send(result)
         })
         // get all package from db //
+        // Get all packages with sorting functionality
         app.get('/packages', async (req, res) => {
-            const result = await packagesCollection.find().limit(20).toArray()
-            res.send(result)
-        })
+            try {
+                const sortOrder = req.query.sort || 'asc'; // Default to ascending
+                const sortOption = sortOrder === 'asc' ? 1 : -1;
+
+                const result = await packagesCollection
+                    .find()
+                    .sort({ price: sortOption }) // Sorting by price
+                    .limit(20)
+                    .toArray();
+
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ message: 'Error fetching packages', error });
+            }
+        });
+
         // get a package by id //
         app.get('/package/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
