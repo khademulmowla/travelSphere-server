@@ -170,6 +170,7 @@ async function run() {
             const result = await usersCollection.updateOne(query, updateDoc);
             res.send(result);
         });
+
         //////////////////////////////////
 
         app.get('/tour-guides/:id', async (req, res) => {
@@ -219,16 +220,31 @@ async function run() {
             const result = await packagesCollection.insertOne(package)
             res.send(result)
         })
+
+        // admin stat //
+        app.get('/admin-stat', verifyToken, verifyAdmin, async (req, res) => {
+            // get total users, total plants
+            const totalUser = await usersCollection.estimatedDocumentCount()
+            const totalAdmin = await usersCollection.countDocuments({ role: 'admin' })
+            const totalGuide = await usersCollection.countDocuments({ role: 'guide' })
+            const totalTourist = await usersCollection.countDocuments({ role: 'tourist' })
+            const totalPackage = await packagesCollection.estimatedDocumentCount()
+            const totalstory = await storiesCollection.estimatedDocumentCount()
+            res.send({ totalUser, totalAdmin, totalGuide, totalTourist, totalPackage, totalstory })
+        })
+
+
+
         // get all package from db //
         // Get all packages with sorting functionality
         app.get('/packages', async (req, res) => {
             try {
-                const sortOrder = req.query.sort || 'asc'; // Default to ascending
+                const sortOrder = req.query.sort || 'asc';
                 const sortOption = sortOrder === 'asc' ? 1 : -1;
 
                 const result = await packagesCollection
                     .find()
-                    .sort({ price: sortOption }) // Sorting by price
+                    .sort({ price: sortOption })
                     .limit(20)
                     .toArray();
 
